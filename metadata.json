@@ -1,0 +1,6 @@
+{
+  "name": "The Masterpiece Heist",
+  "description": "A retro 3D raycasting stealth heist game set in a nocturnal high-security museum.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

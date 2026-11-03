@@ -1,0 +1,2376 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>The Masterpiece Heist - Retro 3D Raycasting Game</title>
+    <meta name="description" content="A classic 3D raycasting stealth game in a high-security nocturnal museum. Infiltrate, collect security codes, stun guards with smoke bombs, and steal the Masterpiece." />
+    <meta property="og:title" content="The Masterpiece Heist" />
+    <meta property="og:description" content="A classic 3D raycasting stealth heist game in a nocturnal museum." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --mahogany-dark: #120805;
+        --mahogany: #2a1208;
+        --mahogany-light: #441c0e;
+        --gold: #d4af37;
+        --gold-bright: #fcd34d;
+        --gold-dim: #92751e;
+        --velvet-red: #881337;
+        --slate-night: #090b10;
+        --slate-card: #141824;
+        --green-laser: #10b981;
+        --red-laser: #ef4444;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      body {
+        background-color: var(--slate-night);
+        color: #e2e8f0;
+        font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* CRT / Retro Cabinet Wrapper */
+      #cabinet {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        max-width: 1200px;
+        max-height: 800px;
+        display: flex;
+        flex-direction: column;
+        background: radial-gradient(circle at center, #1c100a 0%, #0d0604 100%);
+        border: 4px solid #3c1e10;
+        box-shadow: 0 0 40px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(0, 0, 0, 0.8), 0 0 1px 1px var(--gold-dim);
+        overflow: hidden;
+      }
+
+      /* Game Canvas Viewport */
+      #viewport-container {
+        position: relative;
+        flex: 1;
+        width: 100%;
+        height: 100%;
+        background-color: #000;
+        overflow: hidden;
+      }
+
+      #gameCanvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+
+      /* Retro scanline overlay */
+      .scanlines {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+        background-size: 100% 4px;
+        z-index: 10;
+        opacity: 0.6;
+      }
+
+      /* Vignette */
+      .vignette {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(circle, transparent 55%, rgba(5, 2, 1, 0.85) 100%);
+        z-index: 11;
+      }
+
+      /* In-Game HUD Overlay */
+      #hud {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 14px 18px;
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      .hud-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        max-width: calc(100% - 190px);
+        flex-wrap: wrap;
+      }
+
+      .hud-card {
+        background: rgba(18, 8, 5, 0.85);
+        border: 1px solid var(--gold-dim);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
+        padding: 8px 14px;
+        border-radius: 4px;
+        pointer-events: auto;
+        backdrop-filter: blur(4px);
+      }
+
+      .hud-title {
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--gold);
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .hud-val {
+        font-size: 16px;
+        font-weight: 700;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .code-chips {
+        display: flex;
+        gap: 6px;
+        margin-top: 3px;
+      }
+
+      .code-chip {
+        width: 20px;
+        height: 24px;
+        border: 1px dashed rgba(212, 175, 55, 0.4);
+        background: rgba(0, 0, 0, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.3);
+        border-radius: 2px;
+        transition: all 0.3s ease;
+      }
+
+      .code-chip.collected {
+        border: 1px solid var(--gold);
+        background: linear-gradient(135deg, #d4af37, #92751e);
+        color: #000;
+        font-weight: bold;
+        box-shadow: 0 0 10px rgba(212, 175, 55, 0.6);
+      }
+
+      /* Radar / Minimap Anchored Top-Right */
+      #minimap-card {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        width: 170px;
+        height: 200px;
+        padding: 6px;
+        border: 2px solid var(--gold);
+        background: rgba(6, 9, 17, 0.95);
+        border-radius: 6px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.9), 0 0 10px rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(4px);
+        display: flex;
+        flex-direction: column;
+        pointer-events: auto; /* Required so buttons inside work! */
+        z-index: 35;
+        transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1), height 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      #minimap-card.expanded {
+        width: 260px;
+        height: 295px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.95), 0 0 15px rgba(212, 175, 55, 0.6);
+      }
+
+      .minimap-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 5px;
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--gold);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        user-select: none;
+      }
+
+      .btn-map-size {
+        background: rgba(212, 175, 55, 0.2);
+        border: 1px solid var(--gold);
+        color: var(--gold-bright);
+        font-size: 9px;
+        font-weight: 700;
+        padding: 3px 7px;
+        border-radius: 3px;
+        cursor: pointer;
+        pointer-events: auto;
+        font-family: inherit;
+        transition: all 0.2s ease;
+      }
+
+      .btn-map-size:hover {
+        background: var(--gold);
+        color: #000;
+      }
+
+      .minimap-canvas-wrapper {
+        position: relative;
+        flex: 1;
+        width: 100%;
+        min-height: 0;
+        border-radius: 3px;
+        overflow: hidden; /* Prevents maze grid from leaking outside the box */
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: #060912;
+      }
+
+      #minimapCanvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .radar-sweep {
+        position: absolute;
+        inset: 0;
+        border-radius: 3px;
+        pointer-events: none;
+        background: radial-gradient(circle at center, transparent 45%, rgba(56, 189, 248, 0.08) 100%);
+      }
+
+      /* Alert status banner */
+      #status-banner {
+        align-self: center;
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        padding: 4px 16px;
+        border-radius: 20px;
+        font-weight: 700;
+        transition: all 0.25s ease;
+      }
+
+      .status-normal {
+        background: rgba(6, 78, 59, 0.85);
+        color: #34d399;
+        border: 1px solid #059669;
+      }
+
+      .status-alert {
+        background: rgba(153, 27, 27, 0.9);
+        color: #fca5a5;
+        border: 1px solid #dc2626;
+        animation: pulseAlert 0.8s infinite alternate;
+      }
+
+      .status-smoke {
+        background: rgba(30, 58, 138, 0.9);
+        color: #93c5fd;
+        border: 1px solid #3b82f6;
+        animation: pulseSmoke 1s infinite alternate;
+      }
+
+      @keyframes pulseAlert {
+        from { box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+        to { box-shadow: 0 0 16px rgba(239, 68, 68, 0.9); }
+      }
+
+      @keyframes pulseSmoke {
+        from { box-shadow: 0 0 6px rgba(59, 130, 246, 0.4); }
+        to { box-shadow: 0 0 18px rgba(59, 130, 246, 0.9); }
+      }
+
+      /* HUD Notification Toast */
+      #notification-toast {
+        position: absolute;
+        top: 25%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.9);
+        background: rgba(18, 8, 5, 0.92);
+        border: 2px solid var(--gold);
+        color: var(--gold-bright);
+        padding: 10px 24px;
+        font-family: 'Cinzel', serif;
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-align: center;
+        border-radius: 4px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9), 0 0 20px rgba(212, 175, 55, 0.4);
+        opacity: 0;
+        pointer-events: none;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        z-index: 30;
+      }
+
+      #notification-toast.show {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+      }
+
+      /* Bottom HUD row */
+      .hud-bottom {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .controls-hint {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.7);
+        background: rgba(0, 0, 0, 0.6);
+        padding: 6px 12px;
+        border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .key-cap {
+        display: inline-block;
+        background: #27272a;
+        color: #f4f4f5;
+        border: 1px solid #52525b;
+        border-radius: 3px;
+        padding: 1px 5px;
+        font-size: 10px;
+        font-weight: 700;
+        margin: 0 2px;
+      }
+
+      /* Fullscreen Screens: Menu / Victory / Game Over */
+      .screen-overlay {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at center, rgba(30, 14, 8, 0.96) 0%, rgba(10, 4, 2, 0.98) 100%);
+        z-index: 50;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        text-align: center;
+        transition: opacity 0.3s ease;
+      }
+
+      .screen-overlay.hidden {
+        display: none !important;
+      }
+
+      .museum-frame-box {
+        max-width: 580px;
+        width: 100%;
+        background: rgba(18, 8, 5, 0.95);
+        border: 3px solid var(--gold);
+        box-shadow: 0 0 0 4px var(--mahogany-dark), 0 0 0 6px var(--gold-dim), 0 20px 50px rgba(0, 0, 0, 0.9);
+        border-radius: 6px;
+        padding: 32px 36px;
+        position: relative;
+      }
+
+      .museum-frame-box::before {
+        content: '';
+        position: absolute;
+        inset: 6px;
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        pointer-events: none;
+      }
+
+      .game-title {
+        font-family: 'Cinzel', serif;
+        font-size: clamp(24px, 4vw, 36px);
+        font-weight: 900;
+        letter-spacing: 0.1em;
+        color: var(--gold-bright);
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9), 0 0 15px rgba(212, 175, 55, 0.4);
+        margin-bottom: 6px;
+      }
+
+      .game-subtitle {
+        font-size: 12px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.8);
+        margin-bottom: 20px;
+      }
+
+      .briefing-text {
+        font-size: 14px;
+        line-height: 1.6;
+        color: #cbd5e1;
+        margin-bottom: 24px;
+        background: rgba(0, 0, 0, 0.4);
+        padding: 14px 18px;
+        border-radius: 4px;
+        border-left: 3px solid var(--gold);
+        text-align: left;
+      }
+
+      .rules-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 28px;
+        text-align: left;
+      }
+
+      .rule-item {
+        background: rgba(255, 255, 255, 0.04);
+        padding: 10px 12px;
+        border-radius: 4px;
+        border: 1px solid rgba(212, 175, 55, 0.2);
+      }
+
+      .rule-item-title {
+        font-size: 11px;
+        color: var(--gold);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+      }
+
+      .rule-item-desc {
+        font-size: 12px;
+        color: #94a3b8;
+        line-height: 1.4;
+      }
+
+      .btn-gold {
+        background: linear-gradient(180deg, #f59e0b 0%, #b45309 100%);
+        color: #fff;
+        border: 2px solid var(--gold-bright);
+        padding: 14px 32px;
+        font-family: 'Cinzel', serif;
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        border-radius: 4px;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(180, 83, 9, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        text-transform: uppercase;
+      }
+
+      .btn-gold:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(245, 158, 11, 0.7), inset 0 1px 2px rgba(255, 255, 255, 0.6);
+        background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%);
+      }
+
+      .btn-gold:active {
+        transform: translateY(1px);
+      }
+
+      /* Game Over Specific */
+      .screen-caught {
+        background: radial-gradient(circle at center, rgba(60, 10, 10, 0.97) 0%, rgba(15, 2, 2, 0.99) 100%);
+      }
+
+      .caught-title {
+        color: #ef4444 !important;
+        text-shadow: 0 0 20px rgba(239, 68, 68, 0.6) !important;
+      }
+
+      /* Victory Specific */
+      .victory-title {
+        color: #38bdf8 !important;
+        text-shadow: 0 0 25px rgba(56, 189, 248, 0.6) !important;
+      }
+
+      .stats-badge-row {
+        display: flex;
+        justify-content: space-around;
+        margin: 20px 0;
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        padding: 12px;
+        border-radius: 4px;
+      }
+
+      .stat-badge {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .stat-num {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--gold-bright);
+      }
+
+      .stat-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        color: #94a3b8;
+        letter-spacing: 0.05em;
+      }
+
+      /* On-Screen Mobile Controls */
+      #mobile-controls {
+        position: absolute;
+        bottom: 12px;
+        left: 12px;
+        right: 12px;
+        display: none;
+        justify-content: space-between;
+        pointer-events: auto;
+        z-index: 25;
+      }
+
+      .touch-group {
+        display: flex;
+        gap: 8px;
+      }
+
+      .touch-btn {
+        width: 52px;
+        height: 52px;
+        background: rgba(20, 10, 6, 0.85);
+        border: 2px solid var(--gold);
+        border-radius: 8px;
+        color: #fff;
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 700;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        touch-action: manipulation;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
+      }
+
+      .touch-btn:active {
+        background: var(--gold);
+        color: #000;
+      }
+
+      .touch-btn-smoke {
+        width: 90px;
+        background: linear-gradient(135deg, #1e3a8a, #1e1b4b);
+        border-color: #60a5fa;
+        font-size: 13px;
+        letter-spacing: 0.05em;
+      }
+
+      @media (pointer: coarse) or (max-width: 768px) {
+        #mobile-controls {
+          display: flex;
+        }
+        .controls-hint {
+          display: none;
+        }
+      }
+
+      /* Audio Mute button */
+      #sound-toggle {
+        cursor: pointer;
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--gold-dim);
+        color: var(--gold);
+        padding: 4px 10px;
+        border-radius: 3px;
+        font-size: 12px;
+        transition: all 0.2s ease;
+      }
+      #sound-toggle:hover {
+        background: rgba(212, 175, 55, 0.2);
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="cabinet">
+      <!-- 3D Canvas Viewport -->
+      <div id="viewport-container">
+        <canvas id="gameCanvas" width="480" height="320"></canvas>
+        <div class="scanlines"></div>
+        <div class="vignette"></div>
+
+        <!-- Notification Toast -->
+        <div id="notification-toast">SECURITY CIPHER ACQUIRED (1/3)</div>
+
+        <!-- In-game HUD -->
+        <div id="hud">
+          <!-- Top Row -->
+          <div class="hud-header">
+            <!-- Codes Collected -->
+            <div class="hud-card">
+              <div class="hud-title">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>Codes Decrypted</span>
+              </div>
+              <div class="hud-val">
+                <span id="code-count">0/3</span>
+                <div class="code-chips">
+                  <div class="code-chip" id="chip-1">1</div>
+                  <div class="code-chip" id="chip-2">2</div>
+                  <div class="code-chip" id="chip-3">3</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Central Security Status -->
+            <div id="status-banner" class="status-normal">
+              SECURITY STATUS: PATROL
+            </div>
+
+            <!-- Smoke Bombs -->
+            <div class="hud-card">
+              <div class="hud-title">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+                <span>Smoke Bombs</span>
+              </div>
+              <div class="hud-val">
+                <span id="smoke-count">2/2</span>
+                <span style="font-size: 11px; color: #94a3b8; font-weight: normal;">[SPACE]</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Minimap (Anchored Top-Right, Isolated from Header) -->
+          <div id="minimap-card">
+            <div class="minimap-header-row">
+              <span>MUSEUM RADAR</span>
+              <button id="btn-toggle-map" class="btn-map-size" type="button" title="Toggle Map Size">EXPAND [＋]</button>
+            </div>
+            <div class="minimap-canvas-wrapper">
+              <canvas id="minimapCanvas" width="220" height="220"></canvas>
+              <div class="radar-sweep"></div>
+            </div>
+          </div>
+
+          <!-- Bottom Row -->
+          <div class="hud-bottom">
+            <div class="controls-hint">
+              <span class="key-cap">W</span><span class="key-cap">A</span><span class="key-cap">S</span><span class="key-cap">D</span> Walk & Strafe &nbsp;|&nbsp;
+              <span>Two-Finger Trackpad Swipe or Drag to Rotate</span> &nbsp;|&nbsp;
+              <span class="key-cap">SPACE</span> Smoke Bomb
+            </div>
+
+            <button id="sound-toggle" title="Toggle Sound (M)">SOUND: ON</button>
+          </div>
+
+          <!-- Mobile Touch Controls -->
+          <div id="mobile-controls">
+            <div class="touch-group">
+              <button class="touch-btn" id="m-btn-left" title="Strafe Left">◀</button>
+              <button class="touch-btn" id="m-btn-fwd" title="Walk Forward">▲</button>
+              <button class="touch-btn" id="m-btn-back" title="Walk Backward">▼</button>
+              <button class="touch-btn" id="m-btn-right" title="Strafe Right">▶</button>
+            </div>
+            <div class="touch-group">
+              <button class="touch-btn touch-btn-smoke" id="m-btn-smoke">SMOKE</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Start Menu Screen -->
+      <div id="screen-start" class="screen-overlay">
+        <div class="museum-frame-box">
+          <h1 class="game-title">The Masterpiece Heist</h1>
+          <div class="game-subtitle">Royal Museum of Fine Arts · 02:45 AM</div>
+
+          <div class="briefing-text">
+            The world's most guarded classical painting, <strong>"The Star of the Night"</strong>, is locked behind laser barriers deep within the museum. Infiltrate the galleries, retrieve the <strong>3 encrypted security codes</strong>, avoid night guards, and escape with the masterpiece.
+          </div>
+
+          <div class="rules-grid">
+            <div class="rule-item">
+              <div class="rule-item-title">Objective</div>
+              <div class="rule-item-desc">Collect all 3 cipher keycards, then find the Most Secure Painting to win.</div>
+            </div>
+            <div class="rule-item">
+              <div class="rule-item-title">Patrolling Guards</div>
+              <div class="rule-item-desc">3 museum guards patrol the corridors. If they spot you, they give chase!</div>
+            </div>
+            <div class="rule-item">
+              <div class="rule-item-title">Controls (Roblox Style)</div>
+              <div class="rule-item-desc"><span class="key-cap">W</span><span class="key-cap">A</span><span class="key-cap">S</span><span class="key-cap">D</span> to walk & strafe.<br>Two-finger swipe on trackpad (or drag) rotates camera.</div>
+            </div>
+            <div class="rule-item">
+              <div class="rule-item-title">Smoke Screen</div>
+              <div class="rule-item-desc">Press <span class="key-cap">SPACE</span> to stun guards for 5.0 seconds (2 uses max).</div>
+            </div>
+          </div>
+
+          <button id="btn-start" class="btn-gold">Start Operation</button>
+        </div>
+      </div>
+
+      <!-- Game Over Screen -->
+      <div id="screen-gameover" class="screen-overlay screen-caught hidden">
+        <div class="museum-frame-box" style="border-color: #ef4444; box-shadow: 0 0 0 6px #7f1d1d, 0 20px 50px rgba(0,0,0,0.9);">
+          <h1 class="game-title caught-title">CAUGHT</h1>
+          <div class="game-subtitle" style="color: #fca5a5;">SECURITY PROTOCOL ENGAGED · PERIMETER LOCKDOWN</div>
+
+          <div class="briefing-text" style="border-left-color: #ef4444;">
+            A museum guard spotted and detained you before you could extract the masterpiece. The security grid has triggered alarms across the city.
+          </div>
+
+          <div class="stats-badge-row">
+            <div class="stat-badge">
+              <span class="stat-num" id="fail-codes">0/3</span>
+              <span class="stat-label">Codes Recovered</span>
+            </div>
+            <div class="stat-badge">
+              <span class="stat-num" id="fail-time">0:00</span>
+              <span class="stat-label">Operation Time</span>
+            </div>
+          </div>
+
+          <button id="btn-retry" class="btn-gold" style="background: linear-gradient(180deg, #dc2626 0%, #991b1b 100%); border-color: #f87171;">Retry Heist</button>
+        </div>
+      </div>
+
+      <!-- Victory Screen -->
+      <div id="screen-victory" class="screen-overlay hidden">
+        <div class="museum-frame-box" style="border-color: #38bdf8; box-shadow: 0 0 0 6px #0369a1, 0 20px 50px rgba(0,0,0,0.9);">
+          <h1 class="game-title victory-title">HEIST SUCCESSFUL</h1>
+          <div class="game-subtitle" style="color: #7dd3fc;">THE MASTERPIECE HAS BEEN SECURED</div>
+
+          <div class="briefing-text" style="border-left-color: #38bdf8;">
+            Flawless execution! You bypassed the triple biometric locks, extracted <strong>"The Star of the Night"</strong> from its golden pedestal, and vanished into the nocturnal mist without leaving a trace.
+          </div>
+
+          <div class="stats-badge-row">
+            <div class="stat-badge">
+              <span class="stat-num" id="win-time">0:45</span>
+              <span class="stat-label">Heist Time</span>
+            </div>
+            <div class="stat-badge">
+              <span class="stat-num" id="win-smoke">1/2</span>
+              <span class="stat-label">Smoke Bombs Left</span>
+            </div>
+            <div class="stat-badge">
+              <span class="stat-num" id="win-rank">S-RANK</span>
+              <span class="stat-label">Thief Rating</span>
+            </div>
+          </div>
+
+          <button id="btn-playagain" class="btn-gold" style="background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%); border-color: #38bdf8;">Play Again</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GAME ENGINE SCRIPT -->
+    <script>
+      (function() {
+        'use strict';
+
+        /* ----------------------------------------------------
+           1. AUDIO SYNTHESIZER (Web Audio API - No external files)
+           ---------------------------------------------------- */
+        class SoundEngine {
+          constructor() {
+            this.ctx = null;
+            this.muted = false;
+            this.droneGain = null;
+          }
+
+          init() {
+            if (!this.ctx) {
+              const AudioCtx = window.AudioContext || window.webkitAudioContext;
+              if (AudioCtx) {
+                this.ctx = new AudioCtx();
+                this.startAmbientDrone();
+              }
+            } else if (this.ctx.state === 'suspended') {
+              this.ctx.resume();
+            }
+          }
+
+          toggleMute() {
+            this.muted = !this.muted;
+            if (this.droneGain && this.ctx) {
+              this.droneGain.gain.setValueAtTime(this.muted ? 0 : 0.05, this.ctx.currentTime);
+            }
+            return !this.muted;
+          }
+
+          startAmbientDrone() {
+            if (!this.ctx || this.droneGain) return;
+            try {
+              const osc1 = this.ctx.createOscillator();
+              const osc2 = this.ctx.createOscillator();
+              const filter = this.ctx.createBiquadFilter();
+              this.droneGain = this.ctx.createGain();
+
+              osc1.type = 'sawtooth';
+              osc1.frequency.setValueAtTime(55, this.ctx.currentTime); // A1 note
+              osc2.type = 'sine';
+              osc2.frequency.setValueAtTime(55.6, this.ctx.currentTime);
+
+              filter.type = 'lowpass';
+              filter.frequency.setValueAtTime(140, this.ctx.currentTime);
+
+              this.droneGain.gain.setValueAtTime(this.muted ? 0 : 0.05, this.ctx.currentTime);
+
+              osc1.connect(filter);
+              osc2.connect(filter);
+              filter.connect(this.droneGain);
+              this.droneGain.connect(this.ctx.destination);
+
+              osc1.start();
+              osc2.start();
+            } catch (e) {
+              console.warn('Audio drone error', e);
+            }
+          }
+
+          playTone(freq, duration, type = 'sine', volume = 0.2) {
+            if (this.muted || !this.ctx) return;
+            try {
+              const osc = this.ctx.createOscillator();
+              const gain = this.ctx.createGain();
+              osc.type = type;
+              osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+              gain.gain.setValueAtTime(volume, this.ctx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+
+              osc.connect(gain);
+              gain.connect(this.ctx.destination);
+              osc.start();
+              osc.stop(this.ctx.currentTime + duration);
+            } catch (e) {}
+          }
+
+          playStep() {
+            if (this.muted || !this.ctx) return;
+            try {
+              const now = this.ctx.currentTime;
+              const osc = this.ctx.createOscillator();
+              const gain = this.ctx.createGain();
+              osc.type = 'triangle';
+              osc.frequency.setValueAtTime(80, now);
+              osc.frequency.exponentialRampToValueAtTime(30, now + 0.08);
+              gain.gain.setValueAtTime(0.06, now);
+              gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+              osc.connect(gain);
+              gain.connect(this.ctx.destination);
+              osc.start();
+              osc.stop(now + 0.08);
+            } catch (e) {}
+          }
+
+          playPickup() {
+            if (this.muted || !this.ctx) return;
+            const now = this.ctx.currentTime;
+            [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+              setTimeout(() => {
+                this.playTone(freq, 0.16, 'sine', 0.25);
+              }, idx * 60);
+            });
+          }
+
+          playSmoke() {
+            if (this.muted || !this.ctx) return;
+            try {
+              const bufferSize = this.ctx.sampleRate * 0.8;
+              const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+              const data = buffer.getChannelData(0);
+              for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+              }
+              const noise = this.ctx.createBufferSource();
+              noise.buffer = buffer;
+
+              const filter = this.ctx.createBiquadFilter();
+              filter.type = 'bandpass';
+              filter.frequency.setValueAtTime(800, this.ctx.currentTime);
+              filter.frequency.exponentialRampToValueAtTime(150, this.ctx.currentTime + 0.7);
+
+              const gain = this.ctx.createGain();
+              gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.8);
+
+              noise.connect(filter);
+              filter.connect(gain);
+              gain.connect(this.ctx.destination);
+              noise.start();
+            } catch (e) {}
+          }
+
+          playAlert() {
+            if (this.muted || !this.ctx) return;
+            this.playTone(220, 0.12, 'sawtooth', 0.25);
+            setTimeout(() => this.playTone(207.65, 0.35, 'sawtooth', 0.3), 120);
+          }
+
+          playCaught() {
+            if (this.muted || !this.ctx) return;
+            [160, 140, 110, 85].forEach((freq, i) => {
+              setTimeout(() => this.playTone(freq, 0.35, 'sawtooth', 0.35), i * 160);
+            });
+          }
+
+          playVictory() {
+            if (this.muted || !this.ctx) return;
+            const notes = [440, 554.37, 659.25, 880];
+            notes.forEach((freq, i) => {
+              setTimeout(() => this.playTone(freq, 0.4, 'triangle', 0.3), i * 140);
+            });
+          }
+        }
+
+        const audio = new SoundEngine();
+
+        /* ----------------------------------------------------
+           2. PROCEDURAL CANVAS TEXTURES (Light Grey Museum Gallery Walls)
+           ---------------------------------------------------- */
+        const TEX_SIZE = 128;
+        const textures = {};
+
+        function generateProceduralTextures() {
+          // Texture 1: Light Grey Stone Gallery Wall (Architectural Limestone / Slate)
+          const c1 = document.createElement('canvas');
+          c1.width = c1.height = TEX_SIZE;
+          const ctx1 = c1.getContext('2d');
+
+          // Light grey base with subtle vertical architectural gradient
+          const grad1 = ctx1.createLinearGradient(0, 0, 0, TEX_SIZE);
+          grad1.addColorStop(0, '#f1f5f9'); // Slate 100
+          grad1.addColorStop(0.5, '#e2e8f0'); // Slate 200
+          grad1.addColorStop(1, '#cbd5e1'); // Slate 300
+          ctx1.fillStyle = grad1;
+          ctx1.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
+
+          // Subtle architectural stone block seams
+          ctx1.strokeStyle = 'rgba(71, 85, 105, 0.3)';
+          ctx1.lineWidth = 2;
+          ctx1.beginPath();
+          // Horizontal seam
+          ctx1.moveTo(0, TEX_SIZE / 2);
+          ctx1.lineTo(TEX_SIZE, TEX_SIZE / 2);
+          // Vertical staggered seams
+          ctx1.moveTo(TEX_SIZE / 2, 0);
+          ctx1.lineTo(TEX_SIZE / 2, TEX_SIZE / 2);
+          ctx1.moveTo(TEX_SIZE / 4, TEX_SIZE / 2);
+          ctx1.lineTo(TEX_SIZE / 4, TEX_SIZE);
+          ctx1.moveTo((3 * TEX_SIZE) / 4, TEX_SIZE / 2);
+          ctx1.lineTo((3 * TEX_SIZE) / 4, TEX_SIZE);
+          ctx1.stroke();
+
+          // Subtle stone grain texture
+          ctx1.fillStyle = 'rgba(255, 255, 255, 0.25)';
+          for (let i = 0; i < 40; i++) {
+            const rx = (i * 23) % TEX_SIZE;
+            const ry = (i * 37) % TEX_SIZE;
+            ctx1.fillRect(rx, ry, 2, 2);
+          }
+
+          // Polished brass picture rail along top
+          ctx1.fillStyle = '#b45309';
+          ctx1.fillRect(0, 4, TEX_SIZE, 3);
+          ctx1.fillStyle = '#d4af37';
+          ctx1.fillRect(0, 6, TEX_SIZE, 3);
+
+          // Dark slate skirting board at bottom with gold bead
+          ctx1.fillStyle = '#1e293b';
+          ctx1.fillRect(0, TEX_SIZE - 12, TEX_SIZE, 12);
+          ctx1.fillStyle = '#d4af37';
+          ctx1.fillRect(0, TEX_SIZE - 14, TEX_SIZE, 2);
+
+          // Halogen gallery spotlight downlight wash
+          ctx1.fillStyle = '#d4af37';
+          ctx1.fillRect(TEX_SIZE / 2 - 8, 10, 16, 5);
+          const spotGrad = ctx1.createRadialGradient(TEX_SIZE / 2, 14, 2, TEX_SIZE / 2, 38, 55);
+          spotGrad.addColorStop(0, 'rgba(254, 240, 138, 0.55)');
+          spotGrad.addColorStop(1, 'rgba(254, 240, 138, 0)');
+          ctx1.fillStyle = spotGrad;
+          ctx1.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
+
+          textures[1] = c1;
+
+          // Texture 2: Light Grey Wall with Classic Gold-Framed Painting
+          const c2 = document.createElement('canvas');
+          c2.width = c2.height = TEX_SIZE;
+          const ctx2 = c2.getContext('2d');
+          ctx2.drawImage(c1, 0, 0);
+
+          // Ornate gold gilded frame
+          ctx2.fillStyle = '#92400e';
+          ctx2.fillRect(20, 22, TEX_SIZE - 40, TEX_SIZE - 46);
+          ctx2.fillStyle = '#d4af37';
+          ctx2.fillRect(22, 24, TEX_SIZE - 44, TEX_SIZE - 50);
+          ctx2.fillStyle = '#fef08a';
+          ctx2.fillRect(25, 27, TEX_SIZE - 50, TEX_SIZE - 56);
+
+          // Inner classic painting: Nocturnal Starry Landscape
+          const paintGrad = ctx2.createLinearGradient(0, 29, 0, TEX_SIZE - 31);
+          paintGrad.addColorStop(0, '#020617');
+          paintGrad.addColorStop(0.5, '#0f172a');
+          paintGrad.addColorStop(1, '#064e3b');
+          ctx2.fillStyle = paintGrad;
+          ctx2.fillRect(27, 29, TEX_SIZE - 54, TEX_SIZE - 60);
+
+          // Golden crescent moon in painting
+          ctx2.fillStyle = '#fef08a';
+          ctx2.beginPath();
+          ctx2.arc(TEX_SIZE / 2 + 10, 44, 7, 0, Math.PI * 2);
+          ctx2.fill();
+          ctx2.fillStyle = '#020617';
+          ctx2.beginPath();
+          ctx2.arc(TEX_SIZE / 2 + 7, 42, 6, 0, Math.PI * 2);
+          ctx2.fill();
+
+          // Brass museum label plaque
+          ctx2.fillStyle = '#b45309';
+          ctx2.fillRect(TEX_SIZE / 2 - 16, TEX_SIZE - 20, 32, 6);
+          ctx2.fillStyle = '#fef08a';
+          ctx2.fillRect(TEX_SIZE / 2 - 15, TEX_SIZE - 19, 30, 4);
+
+          textures[2] = c2;
+
+          // Texture 3: Light Grey Wall with Modern Art Masterpiece
+          const c3 = document.createElement('canvas');
+          c3.width = c3.height = TEX_SIZE;
+          const ctx3 = c3.getContext('2d');
+          ctx3.drawImage(c1, 0, 0);
+
+          // Burnished gold modern frame
+          ctx3.fillStyle = '#b45309';
+          ctx3.fillRect(18, 20, TEX_SIZE - 36, TEX_SIZE - 42);
+          ctx3.fillStyle = '#d4af37';
+          ctx3.fillRect(20, 22, TEX_SIZE - 40, TEX_SIZE - 46);
+          ctx3.fillStyle = '#090d16';
+          ctx3.fillRect(24, 26, TEX_SIZE - 48, TEX_SIZE - 54);
+
+          // Vibrant geometric modern art
+          ctx3.fillStyle = '#dc2626';
+          ctx3.beginPath();
+          ctx3.arc(48, 52, 14, 0, Math.PI * 2);
+          ctx3.fill();
+          ctx3.fillStyle = '#2563eb';
+          ctx3.fillRect(54, 40, 34, 28);
+          ctx3.fillStyle = '#f59e0b';
+          ctx3.beginPath();
+          ctx3.moveTo(38, 82);
+          ctx3.lineTo(76, 66);
+          ctx3.lineTo(84, 84);
+          ctx3.fill();
+
+          // Museum velvet barrier cord
+          ctx3.fillStyle = '#991b1b';
+          ctx3.fillRect(10, TEX_SIZE - 16, TEX_SIZE - 20, 3);
+
+          textures[3] = c3;
+
+          // Texture 4: The Most Secure Painting ("The Star of the Night" - The Exit!)
+          const c4 = document.createElement('canvas');
+          c4.width = c4.height = TEX_SIZE;
+          const ctx4 = c4.getContext('2d');
+
+          // Polished platinum-grey vault marble wall
+          const vaultGrad = ctx4.createLinearGradient(0, 0, 0, TEX_SIZE);
+          vaultGrad.addColorStop(0, '#f8fafc');
+          vaultGrad.addColorStop(0.5, '#e2e8f0');
+          vaultGrad.addColorStop(1, '#94a3b8');
+          ctx4.fillStyle = vaultGrad;
+          ctx4.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
+
+          // Heavy ornate double gold rococo frame
+          ctx4.fillStyle = '#78350f';
+          ctx4.fillRect(8, 8, TEX_SIZE - 16, TEX_SIZE - 16);
+          ctx4.fillStyle = '#d4af37';
+          ctx4.fillRect(12, 12, TEX_SIZE - 24, TEX_SIZE - 24);
+          ctx4.fillStyle = '#fef08a';
+          ctx4.fillRect(16, 16, TEX_SIZE - 32, TEX_SIZE - 32);
+
+          // Central Masterpiece: The Star of the Night
+          const starGrad = ctx4.createRadialGradient(TEX_SIZE / 2, TEX_SIZE / 2 - 4, 3, TEX_SIZE / 2, TEX_SIZE / 2 - 4, 38);
+          starGrad.addColorStop(0, '#67e8f9');
+          starGrad.addColorStop(0.3, '#0284c7');
+          starGrad.addColorStop(0.7, '#0f172a');
+          starGrad.addColorStop(1, '#020617');
+          ctx4.fillStyle = starGrad;
+          ctx4.fillRect(20, 20, TEX_SIZE - 40, TEX_SIZE - 40);
+
+          // 8-Pointed Golden Star Jewel
+          ctx4.fillStyle = '#ffffff';
+          ctx4.beginPath();
+          const cx = TEX_SIZE / 2;
+          const cy = TEX_SIZE / 2 - 4;
+          for (let i = 0; i < 8; i++) {
+            const a = (i * Math.PI) / 4;
+            const r1 = 19;
+            const r2 = 7;
+            ctx4.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+            ctx4.lineTo(cx + Math.cos(a + Math.PI / 8) * r2, cy + Math.sin(a + Math.PI / 8) * r2);
+          }
+          ctx4.closePath();
+          ctx4.fill();
+
+          // Golden crest plaque
+          ctx4.fillStyle = '#b45309';
+          ctx4.fillRect(cx - 26, TEX_SIZE - 18, 52, 8);
+          ctx4.fillStyle = '#fde047';
+          ctx4.fillRect(cx - 25, TEX_SIZE - 17, 50, 6);
+          ctx4.fillStyle = '#000';
+          ctx4.font = 'bold 5px sans-serif';
+          ctx4.textAlign = 'center';
+          ctx4.fillText('MASTERPIECE', cx, TEX_SIZE - 12);
+
+          textures[4] = c4;
+        }
+
+        generateProceduralTextures();
+
+        /* ----------------------------------------------------
+           3. MAZE GENERATION (Larger 21x21 with guaranteed open path)
+           ---------------------------------------------------- */
+        const MAP_W = 21;
+        const MAP_H = 21;
+        const exitPos = { x: 18.5, y: 19.5, wallX: 18, wallY: 20 };
+        let map = [];
+
+        function generateGuaranteedMaze() {
+          // Fill map with walls (Type 1)
+          map = [];
+          for (let y = 0; y < MAP_H; y++) {
+            map[y] = [];
+            for (let x = 0; x < MAP_W; x++) {
+              map[y][x] = 1;
+            }
+          }
+
+          // Depth-First Spanning Tree on odd coordinates
+          const visited = Array(MAP_H).fill(0).map(() => Array(MAP_W).fill(false));
+          const stack = [];
+
+          const startX = 1;
+          const startY = 1;
+          visited[startY][startX] = true;
+          map[startY][startX] = 0;
+          stack.push([startX, startY]);
+
+          while (stack.length > 0) {
+            const [cx, cy] = stack[stack.length - 1];
+            const neighbors = [];
+            const dirs = [
+              [0, -2], [0, 2], [-2, 0], [2, 0]
+            ];
+
+            for (const [dx, dy] of dirs) {
+              const nx = cx + dx;
+              const ny = cy + dy;
+              if (nx > 0 && nx < MAP_W - 1 && ny > 0 && ny < MAP_H - 1 && !visited[ny][nx]) {
+                neighbors.push([nx, ny, cx + dx / 2, cy + dy / 2]);
+              }
+            }
+
+            if (neighbors.length > 0) {
+              const [nx, ny, wallX, wallY] = neighbors[Math.floor(Math.random() * neighbors.length)];
+              visited[ny][nx] = true;
+              map[ny][nx] = 0;
+              map[wallY][wallX] = 0;
+              stack.push([nx, ny]);
+            } else {
+              stack.pop();
+            }
+          }
+
+          // Carve out 3 Plazas (Galleries) so guards can be bypassed smoothly
+          function carveRoom(rx, ry, w, h) {
+            for (let y = ry; y < ry + h; y++) {
+              for (let x = rx; x < rx + w; x++) {
+                if (x > 0 && x < MAP_W - 1 && y > 0 && y < MAP_H - 1) {
+                  map[y][x] = 0;
+                }
+              }
+            }
+          }
+
+          carveRoom(1, 1, 3, 3); // Entrance Foyer (Player spawn at 2.5, 2.5)
+          carveRoom(9, 9, 3, 3); // Grand Rotunda
+          carveRoom(17, 17, 3, 3); // Vault Gallery (Where exit is!)
+
+          // Add extra corridor loops (remove ~16% internal walls) to guarantee multiple escape routes
+          for (let y = 2; y < MAP_H - 2; y++) {
+            for (let x = 2; x < MAP_W - 2; x++) {
+              if (map[y][x] > 0 && Math.random() < 0.16) {
+                // Only knock down if it connects two open paths
+                const horiz = map[y][x - 1] === 0 && map[y][x + 1] === 0;
+                const vert = map[y - 1][x] === 0 && map[y + 1][x] === 0;
+                if (horiz || vert) {
+                  map[y][x] = 0;
+                }
+              }
+            }
+          }
+
+          // Decorate specific walls with paintings (Type 2 and 3)
+          for (let y = 1; y < MAP_H - 1; y++) {
+            for (let x = 1; x < MAP_W - 1; x++) {
+              if (map[y][x] === 1) {
+                // If adjacent to a corridor
+                const hasAir = (map[y - 1]?.[x] === 0 || map[y + 1]?.[x] === 0 || map[y]?.[x - 1] === 0 || map[y]?.[x + 1] === 0);
+                if (hasAir && Math.random() < 0.3) {
+                  map[y][x] = Math.random() > 0.5 ? 2 : 3;
+                }
+              }
+            }
+          }
+
+          // Place the Most Secure Painting (Exit) at the back of the Vault (18, 20)
+          map[exitPos.wallY][exitPos.wallX] = 4; // Wall texture 4
+        }
+
+        /* ----------------------------------------------------
+           4. GAME STATE, PLAYER, ITEMS & GUARDS
+           ---------------------------------------------------- */
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const minimapCanvas = document.getElementById('minimapCanvas');
+        const miniCtx = minimapCanvas.getContext('2d');
+
+        const STATE = {
+          MENU: 0,
+          PLAYING: 1,
+          GAMEOVER: 2,
+          VICTORY: 3
+        };
+
+        let gameState = STATE.MENU;
+        let gameTime = 0;
+        let smokeBombsLeft = 2;
+        let smokeActiveTimer = 0;
+        let codesCollected = 0;
+        let toastTimer = 0;
+
+        const player = {
+          x: 2.5,
+          y: 2.5,
+          angle: 0.2, // radians
+          radius: 0.26, // strict collision radius
+          moveSpeed: 2.8,
+          rotSpeed: 2.2,
+          footstepTimer: 0
+        };
+
+        let codes = [];
+        let guards = [];
+
+        class SecurityCode {
+          constructor(x, y, id) {
+            this.x = x;
+            this.y = y;
+            this.id = id;
+            this.collected = false;
+            this.floatPhase = Math.random() * Math.PI * 2;
+          }
+        }
+
+        class MuseumGuard {
+          constructor(x, y, name) {
+            this.x = x;
+            this.y = y;
+            this.name = name;
+            this.angle = Math.random() * Math.PI * 2;
+            this.state = 'PATROL'; // PATROL, CHASE, STUNNED
+            this.stunTimer = 0;
+            this.patrolTimer = 0;
+            this.targetX = x;
+            this.targetY = y;
+            this.speed = 1.3;
+            this.alertSoundCooldown = 0;
+          }
+
+          stun(seconds) {
+            this.state = 'STUNNED';
+            this.stunTimer = seconds;
+          }
+
+          update(dt) {
+            if (this.stunTimer > 0) {
+              this.stunTimer -= dt;
+              this.state = 'STUNNED';
+              if (this.stunTimer <= 0) {
+                this.state = 'PATROL';
+              }
+              return;
+            }
+
+            if (this.alertSoundCooldown > 0) {
+              this.alertSoundCooldown -= dt;
+            }
+
+            // Line of sight check to player
+            const dx = player.x - this.x;
+            const dy = player.y - this.y;
+            const dist = Math.hypot(dx, dy);
+
+            let hasLOS = false;
+            if (dist < 7.0) {
+              hasLOS = checkLineOfSight(this.x, this.y, player.x, player.y);
+            }
+
+            if (hasLOS) {
+              if (this.state !== 'CHASE' && this.alertSoundCooldown <= 0) {
+                audio.playAlert();
+                this.alertSoundCooldown = 4.0;
+                showToast(`SECURITY ALERT: ${this.name.toUpperCase()} HAS SPOTTED YOU!`);
+              }
+              this.state = 'CHASE';
+              this.angle = Math.atan2(dy, dx);
+              const chaseSpeed = 2.0;
+              const stepX = Math.cos(this.angle) * chaseSpeed * dt;
+              const stepY = Math.sin(this.angle) * chaseSpeed * dt;
+              if (canMoveTo(this.x + stepX, this.y, 0.28)) this.x += stepX;
+              if (canMoveTo(this.x, this.y + stepY, 0.28)) this.y += stepY;
+
+              // Caught check!
+              if (dist < 0.65) {
+                triggerGameOver();
+              }
+              return;
+            }
+
+            // Default Patrol Behavior
+            this.state = 'PATROL';
+            this.patrolTimer -= dt;
+            if (this.patrolTimer <= 0 || Math.hypot(this.targetX - this.x, this.targetY - this.y) < 0.3) {
+              this.pickPatrolTarget();
+            }
+
+            const pdx = this.targetX - this.x;
+            const pdy = this.targetY - this.y;
+            this.angle = Math.atan2(pdy, pdx);
+            const moveStepX = Math.cos(this.angle) * this.speed * dt;
+            const moveStepY = Math.sin(this.angle) * this.speed * dt;
+
+            if (canMoveTo(this.x + moveStepX, this.y, 0.28)) this.x += moveStepX;
+            else this.patrolTimer = 0;
+
+            if (canMoveTo(this.x, this.y + moveStepY, 0.28)) this.y += moveStepY;
+            else this.patrolTimer = 0;
+          }
+
+          pickPatrolTarget() {
+            this.patrolTimer = 3.5 + Math.random() * 3.0;
+            const candidateDirs = [
+              [1, 0], [-1, 0], [0, 1], [0, -1]
+            ];
+            candidateDirs.sort(() => Math.random() - 0.5);
+
+            for (const [cdx, cdy] of candidateDirs) {
+              const testX = Math.floor(this.x) + cdx * 3 + 0.5;
+              const testY = Math.floor(this.y) + cdy * 3 + 0.5;
+              if (canMoveTo(testX, testY, 0.3)) {
+                this.targetX = testX;
+                this.targetY = testY;
+                return;
+              }
+            }
+            // Fallback random neighbor
+            this.targetX = Math.floor(this.x) + 0.5;
+            this.targetY = Math.floor(this.y) + 0.5;
+          }
+        }
+
+        /* ----------------------------------------------------
+           5. COLLISION & LINE OF SIGHT
+           ---------------------------------------------------- */
+        function isWall(x, y) {
+          const gx = Math.floor(x);
+          const gy = Math.floor(y);
+          if (gx < 0 || gx >= MAP_W || gy < 0 || gy >= MAP_H) return true;
+          return map[gy][gx] > 0;
+        }
+
+        function canMoveTo(x, y, radius = 0.26) {
+          const minX = Math.floor(x - radius);
+          const maxX = Math.floor(x + radius);
+          const minY = Math.floor(y - radius);
+          const maxY = Math.floor(y + radius);
+
+          for (let gy = minY; gy <= maxY; gy++) {
+            for (let gx = minX; gx <= maxX; gx++) {
+              if (gx < 0 || gx >= MAP_W || gy < 0 || gy >= MAP_H) return false;
+              if (map[gy][gx] > 0) return false;
+            }
+          }
+          return true;
+        }
+
+        function checkLineOfSight(x0, y0, x1, y1) {
+          const dist = Math.hypot(x1 - x0, y1 - y0);
+          const steps = Math.ceil(dist * 12);
+          const dx = (x1 - x0) / steps;
+          const dy = (y1 - y0) / steps;
+
+          let cx = x0;
+          let cy = y0;
+          for (let i = 0; i < steps; i++) {
+            cx += dx;
+            cy += dy;
+            if (isWall(cx, cy)) return false;
+          }
+          return true;
+        }
+
+        /* ----------------------------------------------------
+           6. MAP ITEM POPULATION
+           ---------------------------------------------------- */
+        function initGameEntities() {
+          generateGuaranteedMaze();
+
+          player.x = 2.5;
+          player.y = 2.5;
+          player.angle = 0.2;
+          codesCollected = 0;
+          smokeBombsLeft = 2;
+          smokeActiveTimer = 0;
+          gameTime = 0;
+
+          // Find open floor tiles that are separated
+          const openTiles = [];
+          for (let y = 1; y < MAP_H - 1; y++) {
+            for (let x = 1; x < MAP_W - 1; x++) {
+              if (map[y][x] === 0) {
+                const distToSpawn = Math.hypot(x - player.x, y - player.y);
+                if (distToSpawn > 3.0) {
+                  openTiles.push({ x: x + 0.5, y: y + 0.5, distToSpawn });
+                }
+              }
+            }
+          }
+
+          openTiles.sort(() => Math.random() - 0.5);
+
+          // Place 3 security codes in distant wings of the 21x21 museum
+          codes = [];
+          const code1 = openTiles.find(t => t.distToSpawn > 5.0 && t.x < 10 && t.y > 8) || openTiles[0];
+          const code2 = openTiles.find(t => t.distToSpawn > 9.0 && t.x > 9 && t.y < 10) || openTiles[1];
+          const code3 = openTiles.find(t => t.distToSpawn > 13.0 && t.x > 11 && t.y > 11) || openTiles[2];
+
+          codes.push(new SecurityCode(code1.x, code1.y, 1));
+          codes.push(new SecurityCode(code2.x, code2.y, 2));
+          codes.push(new SecurityCode(code3.x, code3.y, 3));
+
+          // Place 3 patrolling museum guards across the enlarged museum
+          guards = [
+            new MuseumGuard(9.5, 4.5, 'Officer Vance'),
+            new MuseumGuard(10.5, 10.5, 'Officer Miller'),
+            new MuseumGuard(15.5, 15.5, 'Officer Sterling')
+          ];
+
+          updateHUD();
+        }
+
+        /* ----------------------------------------------------
+           7. INPUT HANDLING (WSAD Walking & Touchpad/Drag Rotation)
+           ---------------------------------------------------- */
+        const keys = {};
+
+        window.addEventListener('keydown', (e) => {
+          keys[e.key] = true;
+          if (e.code === 'Space') {
+            e.preventDefault();
+            deploySmokeBomb();
+          }
+          if (e.key === 'm' || e.key === 'M') {
+            toggleSound();
+          }
+        });
+
+        window.addEventListener('keyup', (e) => {
+          keys[e.key] = false;
+        });
+
+        // 1. Two-Finger Trackpad Horizontal Swipe (Switched Left/Right direction)
+        window.addEventListener('wheel', (e) => {
+          if (gameState !== STATE.PLAYING) return;
+          if (Math.abs(e.deltaX) > 0.1) {
+            e.preventDefault();
+            // Inverted trackpad horizontal camera rotation
+            player.angle -= e.deltaX * 0.0032;
+          } else if (Math.abs(e.deltaY) > 0.5 && e.shiftKey) {
+            // Shift + trackpad scroll rotation
+            e.preventDefault();
+            player.angle -= e.deltaY * 0.0032;
+          }
+        }, { passive: false });
+
+        // 2. Two-Finger Touchscreen / Touchpad Touch Gesture (Switched Left/Right direction)
+        let twoFingerStartX = null;
+        window.addEventListener('touchstart', (e) => {
+          if (e.touches.length >= 2) {
+            twoFingerStartX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          }
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+          if (e.touches.length >= 2 && twoFingerStartX !== null && gameState === STATE.PLAYING) {
+            const curX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            const dx = curX - twoFingerStartX;
+            player.angle -= dx * 0.007;
+            twoFingerStartX = curX;
+          }
+        }, { passive: true });
+
+        window.addEventListener('touchend', (e) => {
+          if (e.touches.length < 2) {
+            twoFingerStartX = null;
+          }
+        });
+
+        // 3. Roblox-Style Drag to Rotate Camera (Left Click Drag or Right Click Drag across screen)
+        let isPointerDragging = false;
+        let lastPointerX = 0;
+        const vpContainer = document.getElementById('viewport-container');
+
+        if (vpContainer) {
+          vpContainer.addEventListener('pointerdown', (e) => {
+            // Don't drag if clicking buttons or minimap
+            if (e.target.closest('#hud button') || e.target.closest('#minimap-card')) return;
+            isPointerDragging = true;
+            lastPointerX = e.clientX;
+          });
+
+          window.addEventListener('pointermove', (e) => {
+            if (isPointerDragging && gameState === STATE.PLAYING) {
+              const dx = e.clientX - lastPointerX;
+              player.angle += dx * 0.0042;
+              lastPointerX = e.clientX;
+            }
+          });
+
+          window.addEventListener('pointerup', () => { isPointerDragging = false; });
+          window.addEventListener('pointercancel', () => { isPointerDragging = false; });
+          vpContainer.addEventListener('contextmenu', (e) => e.preventDefault());
+        }
+
+        // 4. Mobile touch controls (WASD Walking & Strafing)
+        function setupTouchBtn(btnId, keyName) {
+          const btn = document.getElementById(btnId);
+          if (!btn) return;
+          btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; });
+          btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
+          btn.addEventListener('mousedown', (e) => { e.preventDefault(); keys[keyName] = true; });
+          btn.addEventListener('mouseup', (e) => { e.preventDefault(); keys[keyName] = false; });
+        }
+
+        setupTouchBtn('m-btn-fwd', 'w');
+        setupTouchBtn('m-btn-back', 's');
+        setupTouchBtn('m-btn-left', 'a');
+        setupTouchBtn('m-btn-right', 'd');
+
+        const mSmoke = document.getElementById('m-btn-smoke');
+        if (mSmoke) {
+          mSmoke.addEventListener('click', (e) => {
+            e.preventDefault();
+            deploySmokeBomb();
+          });
+        }
+
+        /* ----------------------------------------------------
+           8. CORE RAYCASTING RENDERER (Wolfenstein 3D Style DDA)
+           ---------------------------------------------------- */
+        const FOV = Math.PI / 3; // 60 degrees FOV
+        const HALF_FOV = FOV / 2;
+        const SCREEN_W = 480;
+        const SCREEN_H = 320;
+        const PROJ_DIST = (SCREEN_W / 2) / Math.tan(HALF_FOV);
+        const zBuffer = new Float32Array(SCREEN_W);
+
+        function renderRaycaster() {
+          // 1. Draw Ceiling and Floor Gradients
+          const ceilGrad = ctx.createLinearGradient(0, 0, 0, SCREEN_H / 2);
+          ceilGrad.addColorStop(0, '#0a0d14');
+          ceilGrad.addColorStop(1, '#1e293b'); // Refined dark museum ceiling
+          ctx.fillStyle = ceilGrad;
+          ctx.fillRect(0, 0, SCREEN_W, SCREEN_H / 2);
+
+          const floorGrad = ctx.createLinearGradient(0, SCREEN_H / 2, 0, SCREEN_H);
+          floorGrad.addColorStop(0, '#1e293b'); // Dark polished parquet floor (high contrast with light grey walls)
+          floorGrad.addColorStop(1, '#0f172a');
+          ctx.fillStyle = floorGrad;
+          ctx.fillRect(0, SCREEN_H / 2, SCREEN_W, SCREEN_H / 2);
+
+          // Subtle horizontal parquet floor board lines
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+          for (let y = SCREEN_H / 2; y < SCREEN_H; y += 8) {
+            ctx.fillRect(0, y, SCREEN_W, 1);
+          }
+
+          // 2. Cast Rays for Walls (DDA Algorithm)
+          for (let col = 0; col < SCREEN_W; col++) {
+            const rayAngle = player.angle - HALF_FOV + (col / SCREEN_W) * FOV;
+            const sinRay = Math.sin(rayAngle);
+            const cosRay = Math.cos(rayAngle);
+
+            let mapX = Math.floor(player.x);
+            let mapY = Math.floor(player.y);
+
+            const deltaDistX = Math.abs(1 / cosRay);
+            const deltaDistY = Math.abs(1 / sinRay);
+
+            let stepX, stepY;
+            let sideDistX, sideDistY;
+
+            if (cosRay < 0) {
+              stepX = -1;
+              sideDistX = (player.x - mapX) * deltaDistX;
+            } else {
+              stepX = 1;
+              sideDistX = (mapX + 1.0 - player.x) * deltaDistX;
+            }
+
+            if (sinRay < 0) {
+              stepY = -1;
+              sideDistY = (player.y - mapY) * deltaDistY;
+            } else {
+              stepY = 1;
+              sideDistY = (mapY + 1.0 - player.y) * deltaDistY;
+            }
+
+            let hit = false;
+            let side = 0; // 0 for X hit, 1 for Y hit
+            let hitType = 1;
+            let loopSafety = 0;
+
+            while (!hit && loopSafety < 60) {
+              loopSafety++;
+              if (sideDistX < sideDistY) {
+                sideDistX += deltaDistX;
+                mapX += stepX;
+                side = 0;
+              } else {
+                sideDistY += deltaDistY;
+                mapY += stepY;
+                side = 1;
+              }
+
+              if (mapX < 0 || mapX >= MAP_W || mapY < 0 || mapY >= MAP_H) {
+                hit = true;
+                hitType = 1;
+                break;
+              }
+
+              if (map[mapY][mapX] > 0) {
+                hit = true;
+                hitType = map[mapY][mapX];
+              }
+            }
+
+            let perpWallDist;
+            if (side === 0) {
+              perpWallDist = (mapX - player.x + (1 - stepX) / 2) / cosRay;
+            } else {
+              perpWallDist = (mapY - player.y + (1 - stepY) / 2) / sinRay;
+            }
+
+            // Correct fisheye distortion
+            const correctedDist = perpWallDist * Math.cos(rayAngle - player.angle);
+            zBuffer[col] = correctedDist;
+
+            // Wall height on screen
+            const lineHeight = Math.min(SCREEN_H * 2.5, Math.floor(PROJ_DIST / Math.max(0.001, correctedDist)));
+            const drawStart = Math.floor((SCREEN_H - lineHeight) / 2);
+
+            // Exact texture coordinate calculation
+            let wallHitX;
+            if (side === 0) {
+              wallHitX = player.y + perpWallDist * sinRay;
+            } else {
+              wallHitX = player.x + perpWallDist * cosRay;
+            }
+            wallHitX -= Math.floor(wallHitX);
+
+            let texX = Math.floor(wallHitX * TEX_SIZE);
+            if (side === 0 && cosRay < 0) texX = TEX_SIZE - texX - 1;
+            if (side === 1 && sinRay > 0) texX = TEX_SIZE - texX - 1;
+            if (texX < 0) texX = 0;
+            if (texX >= TEX_SIZE) texX = TEX_SIZE - 1;
+
+            // Render wall vertical stripe from procedural texture
+            const tex = textures[hitType] || textures[1];
+            ctx.drawImage(tex, texX, 0, 1, TEX_SIZE, col, drawStart, 1, lineHeight);
+
+            // Clear, bright ambient illumination (much easier to see than dark brown)
+            let shade = Math.min(0.55, correctedDist / 16);
+            if (side === 1) shade = Math.min(0.65, shade + 0.08); // subtle 3D depth relief
+
+            ctx.fillStyle = `rgba(0, 0, 0, ${shade})`;
+            ctx.fillRect(col, drawStart, 1, lineHeight);
+
+            // Exit Painting Laser Grill Effect
+            if (hitType === 4) {
+              const laserColor = codesCollected >= 3 ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.5)';
+              const timePulse = Math.sin(gameTime * 6 + col * 0.2);
+              if (timePulse > 0.4) {
+                ctx.fillStyle = laserColor;
+                ctx.fillRect(col, drawStart, 1, lineHeight);
+              }
+            }
+          }
+
+          // 3. Render 3D Sprites (Codes, Guards, Smoke)
+          renderSprites();
+
+          // 4. Render 1st-Person Thief Equipment View in Bottom Center
+          renderThiefEquipment();
+
+          // 5. Active Smoke Screen Overlay
+          if (smokeActiveTimer > 0) {
+            renderSmokeScreenEffect();
+          }
+        }
+
+        /* ----------------------------------------------------
+           9. 3D SPRITE RENDERING
+           ---------------------------------------------------- */
+        function renderSprites() {
+          const spriteList = [];
+
+          // Security Codes
+          codes.forEach(c => {
+            if (!c.collected) {
+              const dist = Math.hypot(c.x - player.x, c.y - player.y);
+              spriteList.push({ type: 'CODE', obj: c, x: c.x, y: c.y, dist });
+            }
+          });
+
+          // Guards
+          guards.forEach(g => {
+            const dist = Math.hypot(g.x - player.x, g.y - player.y);
+            spriteList.push({ type: 'GUARD', obj: g, x: g.x, y: g.y, dist });
+          });
+
+          // Sort back-to-front
+          spriteList.sort((a, b) => b.dist - a.dist);
+
+          for (const sp of spriteList) {
+            // Translate sprite position relative to player
+            const spriteX = sp.x - player.x;
+            const spriteY = sp.y - player.y;
+
+            // Transform sprite with camera direction matrix
+            const cosAngle = Math.cos(player.angle);
+            const sinAngle = Math.sin(player.angle);
+
+            // Rotate relative to player view
+            const transformX = sinAngle * spriteX - cosAngle * spriteY;
+            const transformY = cosAngle * spriteX + sinAngle * spriteY; // depth
+
+            if (transformY <= 0.15) continue; // Behind player
+
+            const spriteScreenX = Math.floor((SCREEN_W / 2) * (1 + transformX / (transformY * Math.tan(HALF_FOV))));
+            const spriteHeight = Math.abs(Math.floor(PROJ_DIST / transformY));
+            const spriteWidth = spriteHeight; // square sprite bounds
+
+            const drawStartY = Math.floor((SCREEN_H - spriteHeight) / 2);
+            const drawStartX = Math.floor(spriteScreenX - spriteWidth / 2);
+
+            // Check if within screen
+            if (spriteScreenX + spriteWidth / 2 < 0 || spriteScreenX - spriteWidth / 2 >= SCREEN_W) continue;
+
+            // Z-buffer visibility check
+            let visibleCols = 0;
+            for (let c = Math.max(0, drawStartX); c < Math.min(SCREEN_W, drawStartX + spriteWidth); c++) {
+              if (transformY < zBuffer[c]) visibleCols++;
+            }
+            if (visibleCols === 0) continue;
+
+            // Draw Sprite
+            if (sp.type === 'CODE') {
+              drawSecurityCodeSprite(drawStartX, drawStartY, spriteWidth, spriteHeight, transformY);
+            } else if (sp.type === 'GUARD') {
+              drawGuardSprite(drawStartX, drawStartY, spriteWidth, spriteHeight, transformY, sp.obj);
+            }
+          }
+        }
+
+        // Draw Animated Security Keycard
+        function drawSecurityCodeSprite(x, y, w, h, depth) {
+          const hoverOffset = Math.sin(gameTime * 4) * (h * 0.08);
+          const top = y + hoverOffset;
+          const cardW = w * 0.45;
+          const cardH = h * 0.55;
+          const cx = x + (w - cardW) / 2;
+          const cy = top + (h - cardH) / 2;
+
+          // Glowing aura
+          const glowGrad = ctx.createRadialGradient(cx + cardW / 2, cy + cardH / 2, 2, cx + cardW / 2, cy + cardH / 2, cardW * 0.9);
+          glowGrad.addColorStop(0, 'rgba(56, 189, 248, 0.7)');
+          glowGrad.addColorStop(0.5, 'rgba(212, 175, 55, 0.3)');
+          glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = glowGrad;
+          ctx.fillRect(cx - cardW * 0.5, cy - cardH * 0.5, cardW * 2, cardH * 2);
+
+          // Keycard body (Cyber gold & cyan)
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(cx, cy, cardW, cardH);
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = Math.max(1, Math.floor(w * 0.03));
+          ctx.strokeRect(cx, cy, cardW, cardH);
+
+          // Golden chip in center
+          ctx.fillStyle = '#d4af37';
+          ctx.fillRect(cx + cardW * 0.25, cy + cardH * 0.3, cardW * 0.5, cardH * 0.35);
+
+          // Pulsing circuitry lines
+          ctx.fillStyle = '#67e8f9';
+          ctx.fillRect(cx + cardW * 0.3, cy + cardH * 0.72, cardW * 0.4, 2);
+        }
+
+        // Draw Retro Uniformed Guard
+        function drawGuardSprite(x, y, w, h, depth, guard) {
+          const cx = x + w / 2;
+          const cy = y + h * 0.55;
+
+          const isStunned = guard.state === 'STUNNED';
+          const isChase = guard.state === 'CHASE';
+
+          // Walking bob animation
+          const walkBob = (guard.state === 'CHASE' || guard.state === 'PATROL') ? Math.sin(gameTime * 10) * (h * 0.03) : 0;
+
+          // Guard Body Silhouette
+          const bodyW = w * 0.38;
+          const bodyH = h * 0.5;
+
+          // Flashlight beam on ground
+          if (!isStunned) {
+            const beamGrad = ctx.createRadialGradient(cx, cy + bodyH * 0.4, 5, cx, cy + bodyH * 0.7, bodyW * 1.5);
+            beamGrad.addColorStop(0, isChase ? 'rgba(239, 68, 68, 0.6)' : 'rgba(254, 240, 138, 0.45)');
+            beamGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = beamGrad;
+            ctx.beginPath();
+            ctx.arc(cx, cy + bodyH * 0.45, bodyW * 1.2, 0, Math.PI);
+            ctx.fill();
+          }
+
+          // Dark Navy Museum Security Uniform Coat
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(cx - bodyW / 2, cy - bodyH * 0.2 + walkBob, bodyW, bodyH * 0.7);
+
+          // Gold Epaulets on shoulders
+          ctx.fillStyle = '#d4af37';
+          ctx.fillRect(cx - bodyW / 2, cy - bodyH * 0.2 + walkBob, bodyW * 0.25, 4);
+          ctx.fillRect(cx + bodyW / 2 - bodyW * 0.25, cy - bodyH * 0.2 + walkBob, bodyW * 0.25, 4);
+
+          // Gold Security Badge
+          ctx.fillStyle = '#facc15';
+          ctx.beginPath();
+          ctx.arc(cx - bodyW * 0.18, cy + bodyH * 0.05 + walkBob, bodyW * 0.08, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Guard Head
+          const headR = bodyW * 0.28;
+          const headY = cy - bodyH * 0.35 + walkBob;
+          ctx.fillStyle = '#fbcfe8'; // skin tone
+          ctx.beginPath();
+          ctx.arc(cx, headY, headR, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Peaked Security Cap
+          ctx.fillStyle = '#020617';
+          ctx.fillRect(cx - headR * 1.2, headY - headR * 1.1, headR * 2.4, headR * 0.8);
+          ctx.fillStyle = '#d4af37'; // cap gold band
+          ctx.fillRect(cx - headR * 1.2, headY - headR * 0.35, headR * 2.4, 3);
+          ctx.fillStyle = '#1e293b'; // cap visor
+          ctx.fillRect(cx - headR * 1.3, headY - headR * 0.1, headR * 2.6, 4);
+
+          // Status overhead indicators: Alert "!" or Stunned "✦"
+          if (isChase) {
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(cx, headY - headR * 2.2, headR * 0.7, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = `bold ${Math.max(10, Math.floor(h * 0.1))}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.fillText('!', cx, headY - headR * 1.8);
+          } else if (isStunned) {
+            ctx.fillStyle = '#38bdf8';
+            ctx.font = `bold ${Math.max(11, Math.floor(h * 0.12))}px sans-serif`;
+            ctx.textAlign = 'center';
+            const starRotate = Math.sin(gameTime * 8);
+            ctx.fillText('✦ ✦', cx + starRotate * 6, headY - headR * 1.8);
+          }
+        }
+
+        // Draw Player Thief Gloves & Decoder Device in bottom foreground
+        function renderThiefEquipment() {
+          const handX = SCREEN_W / 2;
+          const handY = SCREEN_H;
+          const swayX = Math.sin(player.footstepTimer * 8) * 8;
+          const swayY = Math.abs(Math.cos(player.footstepTimer * 8)) * 6;
+
+          // Thief Leather Glove & Hand holding Scanner
+          ctx.save();
+          ctx.translate(handX + swayX, handY + swayY);
+
+          // Black leather sleeve / wrist
+          ctx.fillStyle = '#0a0a0d';
+          ctx.beginPath();
+          ctx.moveTo(-70, 0);
+          ctx.lineTo(-45, -60);
+          ctx.lineTo(45, -60);
+          ctx.lineTo(70, 0);
+          ctx.fill();
+
+          // Retro Brass & Matte-Black Scanner Unit
+          ctx.fillStyle = '#1c1917';
+          ctx.strokeStyle = '#d4af37';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.roundRect(-40, -95, 80, 50, 4);
+          ctx.fill();
+          ctx.stroke();
+
+          // Mini CRT screen on scanner
+          ctx.fillStyle = '#042f2e';
+          ctx.fillRect(-32, -88, 64, 28);
+          ctx.strokeStyle = '#14b8a6';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(-32, -88, 64, 28);
+
+          // Scanner radar line sweep
+          ctx.fillStyle = '#2dd4bf';
+          ctx.font = '7px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`CIPHERS: ${codesCollected}/3`, 0, -78);
+
+          // LED indicator pips
+          for (let i = 0; i < 3; i++) {
+            ctx.fillStyle = i < codesCollected ? '#10b981' : '#450a0a';
+            ctx.beginPath();
+            ctx.arc(-16 + i * 16, -67, 3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Leather thumb grasping side
+          ctx.fillStyle = '#18181b';
+          ctx.beginPath();
+          ctx.arc(36, -72, 10, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+        }
+
+        // Billowing Smoke Screen Effect
+        function renderSmokeScreenEffect() {
+          const alpha = Math.min(0.75, smokeActiveTimer / 1.5);
+          ctx.fillStyle = `rgba(148, 163, 184, ${alpha})`;
+          ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+          // Swirling smoke puffs
+          ctx.fillStyle = `rgba(241, 245, 249, ${alpha * 0.4})`;
+          for (let i = 0; i < 8; i++) {
+            const angle = (i * Math.PI) / 4 + gameTime * 2;
+            const r = 80 + Math.sin(gameTime * 3 + i) * 30;
+            const sx = SCREEN_W / 2 + Math.cos(angle) * r;
+            const sy = SCREEN_H / 2 + Math.sin(angle) * r;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 70, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        /* ----------------------------------------------------
+           10. 2D MINIMAP RENDERER (Enlarged with Light Grey Walls)
+           ---------------------------------------------------- */
+        function renderMinimap() {
+          const mw = minimapCanvas.width;
+          const mh = minimapCanvas.height;
+          miniCtx.fillStyle = '#060912';
+          miniCtx.fillRect(0, 0, mw, mh);
+
+          const tileSize = mw / MAP_W;
+
+          // Render maze blueprint tiles: Light grey walls for high visibility
+          for (let y = 0; y < MAP_H; y++) {
+            for (let x = 0; x < MAP_W; x++) {
+              if (map[y][x] > 0) {
+                if (map[y][x] === 4) {
+                  miniCtx.fillStyle = '#f59e0b'; // Masterpiece Exit in gold
+                } else {
+                  miniCtx.fillStyle = '#cbd5e1'; // Clear light grey wall!
+                }
+                miniCtx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+                // Crisp wall border outline
+                miniCtx.strokeStyle = '#94a3b8';
+                miniCtx.lineWidth = 0.8;
+                miniCtx.strokeRect(x * tileSize, y * tileSize, tileSize, tileSize);
+              } else {
+                miniCtx.fillStyle = '#090d16'; // Deep dark corridor path
+                miniCtx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+              }
+            }
+          }
+
+          // Draw Exit Star (Masterpiece) with pulsing beacon
+          const ex = exitPos.x * tileSize;
+          const ey = exitPos.y * tileSize;
+          const pulse = Math.sin(gameTime * 6) * 2;
+
+          miniCtx.fillStyle = '#fde047';
+          miniCtx.beginPath();
+          miniCtx.arc(ex, ey, tileSize * 0.95 + pulse, 0, Math.PI * 2);
+          miniCtx.fill();
+          miniCtx.strokeStyle = '#d97706';
+          miniCtx.lineWidth = 1.5;
+          miniCtx.stroke();
+
+          // Draw Security Codes (Glowing cyan dots with white center)
+          codes.forEach(c => {
+            if (!c.collected) {
+              const cx = c.x * tileSize;
+              const cy = c.y * tileSize;
+              miniCtx.fillStyle = '#38bdf8';
+              miniCtx.beginPath();
+              miniCtx.arc(cx, cy, tileSize * 0.8, 0, Math.PI * 2);
+              miniCtx.fill();
+              miniCtx.fillStyle = '#ffffff';
+              miniCtx.beginPath();
+              miniCtx.arc(cx, cy, tileSize * 0.35, 0, Math.PI * 2);
+              miniCtx.fill();
+            }
+          });
+
+          // Draw Guards (Yellow = patrol, Red = chase, Cyan = stunned)
+          guards.forEach(g => {
+            const gx = g.x * tileSize;
+            const gy = g.y * tileSize;
+            miniCtx.fillStyle = g.state === 'STUNNED' ? '#38bdf8' : (g.state === 'CHASE' ? '#ef4444' : '#eab308');
+            miniCtx.beginPath();
+            miniCtx.arc(gx, gy, tileSize * 0.85, 0, Math.PI * 2);
+            miniCtx.fill();
+            miniCtx.strokeStyle = '#000000';
+            miniCtx.lineWidth = 1;
+            miniCtx.stroke();
+          });
+
+          // Draw Player & Vision Frustum
+          const px = player.x * tileSize;
+          const py = player.y * tileSize;
+
+          miniCtx.fillStyle = 'rgba(212, 175, 55, 0.32)';
+          miniCtx.beginPath();
+          miniCtx.moveTo(px, py);
+          miniCtx.arc(px, py, tileSize * 4.8, player.angle - HALF_FOV, player.angle + HALF_FOV);
+          miniCtx.closePath();
+          miniCtx.fill();
+
+          // Player position dot
+          miniCtx.fillStyle = '#f59e0b';
+          miniCtx.beginPath();
+          miniCtx.arc(px, py, tileSize * 0.9, 0, Math.PI * 2);
+          miniCtx.fill();
+          miniCtx.strokeStyle = '#ffffff';
+          miniCtx.lineWidth = 1.5;
+          miniCtx.stroke();
+
+          // Heading direction pointer
+          miniCtx.beginPath();
+          miniCtx.moveTo(px, py);
+          miniCtx.lineTo(px + Math.cos(player.angle) * tileSize * 2.2, py + Math.sin(player.angle) * tileSize * 2.2);
+          miniCtx.stroke();
+        }
+
+        /* ----------------------------------------------------
+           11. ABILITY & GAMEPLAY ACTIONS
+           ---------------------------------------------------- */
+        function deploySmokeBomb() {
+          if (gameState !== STATE.PLAYING) return;
+          if (smokeBombsLeft <= 0) {
+            showToast('NO SMOKE BOMBS REMAINING!');
+            return;
+          }
+          if (smokeActiveTimer > 0) return; // already active
+
+          smokeBombsLeft--;
+          smokeActiveTimer = 5.0;
+          audio.playSmoke();
+          showToast('SMOKE SCREEN DEPLOYED! GUARDS STUNNED FOR 5.0s');
+
+          guards.forEach(g => g.stun(5.0));
+          updateHUD();
+        }
+
+        function checkItemCollisions() {
+          // Check Keycards
+          codes.forEach(c => {
+            if (!c.collected) {
+              const d = Math.hypot(c.x - player.x, c.y - player.y);
+              if (d < 0.65) {
+                c.collected = true;
+                codesCollected++;
+                audio.playPickup();
+                showToast(`SECURITY CODE ${codesCollected}/3 DECRYPTED!`);
+                updateHUD();
+
+                if (codesCollected === 3) {
+                  setTimeout(() => {
+                    showToast('ALL CODES ACQUIRED! REACH THE MASTERPIECE IN THE VAULT!');
+                  }, 1800);
+                }
+              }
+            }
+          });
+
+          // Check Exit Painting Wall Proximity
+          const distToExit = Math.hypot(exitPos.x - player.x, exitPos.y - player.y);
+          if (distToExit < 1.4) {
+            if (codesCollected >= 3) {
+              triggerVictory();
+            } else {
+              if (Math.sin(gameTime * 4) > 0.8) {
+                showToast(`VAULT LOCKED: 3 CODES REQUIRED (HAVE ${codesCollected}/3)`);
+              }
+            }
+          }
+        }
+
+        function showToast(msg) {
+          const toast = document.getElementById('notification-toast');
+          toast.textContent = msg;
+          toast.classList.add('show');
+          clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => {
+            toast.classList.remove('show');
+          }, 2400);
+        }
+
+        function updateHUD() {
+          document.getElementById('code-count').textContent = `${codesCollected}/3`;
+          document.getElementById('smoke-count').textContent = `${smokeBombsLeft}/2`;
+
+          for (let i = 1; i <= 3; i++) {
+            const chip = document.getElementById(`chip-${i}`);
+            if (chip) {
+              if (i <= codesCollected) chip.classList.add('collected');
+              else chip.classList.remove('collected');
+            }
+          }
+
+          const banner = document.getElementById('status-banner');
+          if (smokeActiveTimer > 0) {
+            banner.className = 'status-smoke';
+            banner.textContent = `SMOKE SCREEN: ${smokeActiveTimer.toFixed(1)}s`;
+          } else {
+            const chasingGuard = guards.find(g => g.state === 'CHASE');
+            if (chasingGuard) {
+              banner.className = 'status-alert';
+              banner.textContent = 'SECURITY ALERT: PURSUIT!';
+            } else {
+              banner.className = 'status-normal';
+              banner.textContent = 'SECURITY STATUS: PATROL';
+            }
+          }
+        }
+
+        function toggleSound() {
+          const isSoundOn = audio.toggleMute();
+          document.getElementById('sound-toggle').textContent = isSoundOn ? 'SOUND: ON' : 'SOUND: MUTED';
+        }
+
+        document.getElementById('sound-toggle').addEventListener('click', toggleSound);
+
+        /* ----------------------------------------------------
+           12. GAME LOOP & STATE TRANSITIONS
+           ---------------------------------------------------- */
+        let lastTime = performance.now();
+
+        function gameLoop(now) {
+          const dt = Math.min(0.1, (now - lastTime) / 1000);
+          lastTime = now;
+
+          if (gameState === STATE.PLAYING) {
+            gameTime += dt;
+
+            // Camera Rotation via Keyboard backup (Q/E or ArrowLeft/ArrowRight)
+            if (keys['q'] || keys['Q'] || keys['ArrowLeft']) {
+              player.angle -= player.rotSpeed * dt;
+            }
+            if (keys['e'] || keys['E'] || keys['ArrowRight']) {
+              player.angle += player.rotSpeed * dt;
+            }
+
+            // All WSAD is Walking & Strafing
+            let moveFwd = 0;
+            let moveStrafe = 0;
+
+            if (keys['w'] || keys['W'] || keys['ArrowUp']) moveFwd += 1;
+            if (keys['s'] || keys['S'] || keys['ArrowDown']) moveFwd -= 1;
+            if (keys['a'] || keys['A']) moveStrafe -= 1; // Strafe Left
+            if (keys['d'] || keys['D']) moveStrafe += 1; // Strafe Right
+
+            if (moveFwd !== 0 || moveStrafe !== 0) {
+              const len = Math.hypot(moveFwd, moveStrafe);
+              const speed = player.moveSpeed * dt;
+              const stepFwd = (moveFwd / len) * speed;
+              const stepStrafe = (moveStrafe / len) * speed;
+
+              // Forward vector
+              const fwdX = Math.cos(player.angle);
+              const fwdY = Math.sin(player.angle);
+
+              // Right strafe vector (perpendicular +90 deg)
+              const rightX = Math.cos(player.angle + Math.PI / 2);
+              const rightY = Math.sin(player.angle + Math.PI / 2);
+
+              const dx = fwdX * stepFwd + rightX * stepStrafe;
+              const dy = fwdY * stepFwd + rightY * stepStrafe;
+
+              // Smooth Wall Sliding collision
+              if (canMoveTo(player.x + dx, player.y, player.radius)) {
+                player.x += dx;
+              }
+              if (canMoveTo(player.x, player.y + dy, player.radius)) {
+                player.y += dy;
+              }
+
+              // Footsteps
+              player.footstepTimer += dt;
+              if (player.footstepTimer > 0.36) {
+                player.footstepTimer = 0;
+                audio.playStep();
+              }
+            }
+
+            // Smoke bomb cooldown
+            if (smokeActiveTimer > 0) {
+              smokeActiveTimer -= dt;
+              if (smokeActiveTimer <= 0) {
+                smokeActiveTimer = 0;
+                updateHUD();
+              }
+            }
+
+            // Update Guards
+            guards.forEach(g => g.update(dt));
+
+            // Check item pickups and exit trigger
+            checkItemCollisions();
+
+            // Render 3D and 2D
+            renderRaycaster();
+            renderMinimap();
+            updateHUD();
+          }
+
+          requestAnimationFrame(gameLoop);
+        }
+
+        /* ----------------------------------------------------
+           13. SCREEN HANDLERS
+           ---------------------------------------------------- */
+        function startGame() {
+          audio.init();
+          initGameEntities();
+          gameState = STATE.PLAYING;
+          document.getElementById('screen-start').classList.add('hidden');
+          document.getElementById('screen-gameover').classList.add('hidden');
+          document.getElementById('screen-victory').classList.add('hidden');
+        }
+
+        function triggerGameOver() {
+          gameState = STATE.GAMEOVER;
+          audio.playCaught();
+
+          const mins = Math.floor(gameTime / 60);
+          const secs = Math.floor(gameTime % 60).toString().padStart(2, '0');
+          document.getElementById('fail-time').textContent = `${mins}:${secs}`;
+          document.getElementById('fail-codes').textContent = `${codesCollected}/3`;
+
+          document.getElementById('screen-gameover').classList.remove('hidden');
+        }
+
+        function triggerVictory() {
+          gameState = STATE.VICTORY;
+          audio.playVictory();
+
+          const mins = Math.floor(gameTime / 60);
+          const secs = Math.floor(gameTime % 60).toString().padStart(2, '0');
+          document.getElementById('win-time').textContent = `${mins}:${secs}`;
+          document.getElementById('win-smoke').textContent = `${smokeBombsLeft}/2`;
+
+          let rank = 'S-RANK PHANTOM';
+          if (gameTime > 120 || smokeBombsLeft === 0) rank = 'A-RANK BURGLAR';
+          if (gameTime > 180) rank = 'B-RANK PROWLER';
+          document.getElementById('win-rank').textContent = rank;
+
+          document.getElementById('screen-victory').classList.remove('hidden');
+        }
+
+        // Button Listeners
+        document.getElementById('btn-start').addEventListener('click', startGame);
+        document.getElementById('btn-retry').addEventListener('click', startGame);
+        document.getElementById('btn-playagain').addEventListener('click', startGame);
+
+        // Minimap Expand/Shrink Toggle
+        const mapCard = document.getElementById('minimap-card');
+        const btnToggleMap = document.getElementById('btn-toggle-map');
+
+        function handleToggleMap(e) {
+          if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+          if (mapCard) {
+            mapCard.classList.toggle('expanded');
+            const isExp = mapCard.classList.contains('expanded');
+            if (btnToggleMap) {
+              btnToggleMap.textContent = isExp ? 'SHRINK [－]' : 'EXPAND [＋]';
+            }
+          }
+        }
+
+        if (btnToggleMap) {
+          btnToggleMap.addEventListener('click', handleToggleMap);
+          btnToggleMap.addEventListener('touchend', (e) => {
+            handleToggleMap(e);
+          });
+        }
+
+        const mapHeader = document.querySelector('.minimap-header-row');
+        if (mapHeader) {
+          mapHeader.style.cursor = 'pointer';
+          mapHeader.addEventListener('click', (e) => {
+            if (e.target !== btnToggleMap) handleToggleMap(e);
+          });
+        }
+
+        // Responsive canvas fit
+        function resizeCanvas() {
+          // Internal render resolution stays 480x320 for authentic retro pixel aesthetic
+          // CSS handles display scaling
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // Start animation loop
+        requestAnimationFrame(gameLoop);
+
+      })();
+    </script>
+  </body>
+</html>
